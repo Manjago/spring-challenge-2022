@@ -1,6 +1,4 @@
 import java.util.*
-import java.io.*
-import java.math.*
 
 /**
  * Auto-generated code below aims at helping you parse
@@ -12,6 +10,8 @@ fun main(args : Array<String>) {
     val baseY = input.nextInt()
     val heroesPerPlayer = input.nextInt() // Always 3
 
+    val player = Player()
+
     // game loop
     while (true) {
         for (i in 0 until 2) {
@@ -19,8 +19,8 @@ fun main(args : Array<String>) {
             val mana = input.nextInt() // Ignore in the first league; Spend ten mana to cast a spell
         }
         val entityCount = input.nextInt() // Amount of heros and monsters you can see
-        val spiders = mutableListOf<Spider>()
-        val heroes = mutableMapOf<Int, Hero>()
+        val spiders = mutableMapOf<Int, Spider>()
+        val heroesCoord = Array(3) { Coord.ZERO }
         for (i in 0 until entityCount) {
             val id = input.nextInt() // Unique identifier
             val type = input.nextInt() // 0=monster, 1=your hero, 2=opponent hero
@@ -36,7 +36,7 @@ fun main(args : Array<String>) {
 
             when (type) {
                 0 -> {
-                    spiders.add(Spider(
+                    spiders.put(id, Spider(
                         id,
                         x,
                         y,
@@ -48,67 +48,99 @@ fun main(args : Array<String>) {
                     ))
                 }
                 1 -> {
-                    heroes.put(id, Hero(id, x, y))
+                    heroesCoord[i] = Coord(x, y)
                 }
             }
 
         }
 
-        val nextMove = nextMove(spiders, heroes)
-        System.err.println("nextMove size ${nextMove.size}")
+        val nextMove = player.nextMove(spiders, heroesCoord)
         nextMove.forEach {
             println(it)
         }
     }
 }
 
-val baseX = 1131
-val baseY = 1131
-
-data class Spider(
+class Spider(
     val id: Int,
-    val x: Int,
-    val y: Int,
+    x: Int,
+    y: Int,
     val health: Int,
     val vx: Int,
     val vy: Int,
     val nearBase: Boolean,
     val threatForMe: Boolean
-) {
-    var cost: Int = calcCost()
-
-    private fun calcCost() : Int = when {
-        nearBase -> dist(baseX, baseY, x, y) - 10000
-        threatForMe -> {
-            dist(baseX, baseY, x, y)
-        }
-        else -> 0
+) : Coord(x, y) {
+    override fun toString(): String {
+        return "Spider(id=$id, health=$health, vx=$vx, vy=$vy, nearBase=$nearBase, threatForMe=$threatForMe) ${super.toString()}"
     }
-
-    fun dist(xMe: Int, yMe: Int, xHis: Int, yHis: Int) : Int = (xMe - xHis)*(xMe - xHis) + (yMe - yHis) * (yMe - yHis)
 }
 
-data class Hero(
-    val id: Int,
-    val x: Int,
-    val y: Int
-)
-
-fun nextMove(spiders : List<Spider>, heroes: Map<Int, Hero>) : List<String> {
-
-    val sorted = spiders.sortedBy { it.cost }
-    val answer = mutableListOf<String>()
-    for(i in sorted.indices) {
-       val spider = spiders[i]
-       answer.add("MOVE ${spider.x} ${spider.y}")
-       if (answer.size == 3) {
-           break
-       }
+open class Coord(val x: Int, val y: Int) {
+    override fun toString(): String {
+        return "Coord(x=$x, y=$y)"
     }
-
-    while (answer.size < 3) {
-        answer.add("WAIT")
+    companion object {
+        val ZERO = Coord(0,0)
     }
+}
 
-    return answer.toList()
+fun dist(xMe: Int, yMe: Int, xHis: Int, yHis: Int) : Int = (xMe - xHis)*(xMe - xHis) + (yMe - yHis) * (yMe - yHis)
+
+sealed interface State {
+    enum class Wait : State {
+        INSTANCE;
+    }
+    class Focused(val victimId: Int) : State
+}
+
+class Player {
+
+    lateinit var coord : Array<Coord>
+    val states = Array<State>(3) {State.Wait.INSTANCE}
+
+    fun nextMove(spiders : Map<Int, Spider>, heroesCoord: Array<Coord>) : List<String> {
+
+        coord = heroesCoord
+
+        // clean old
+        for(i in 0 until 3) {
+            val state = states[i]
+            if (state is State.Focused) {
+                if (!spiders.containsKey(state.victimId)) {
+                    val oldVicitmId = state.victimId
+                    states[i] = State.Wait.INSTANCE
+                    System.err.println("$i release from $oldVicitmId")
+                }
+            }
+        }
+
+        // get new
+        spiders.values.asSequence().filter { spider -> spider.nearBase }.forEach {spider ->
+            if (states.asSequence().any { it is State.Focused && it.victimId == spider.id}.not()) {
+                for (i in 0 until 3) {
+                    val st = states[i]
+                    if (st is State.Wait) {
+                        states[i] = State.Focused(spider.id)
+                        System.err.println("$i focus on ${spider.id}")
+                    }
+                }
+            }
+        }
+
+        val answer = mutableListOf<String>()
+
+        for(i in 0 until 3) {
+            val state = states[i]
+            when(state) {
+                is State.Wait -> answer.add("WAIT")
+                is State.Focused -> {
+                    val target = spiders[state.victimId]!!
+                    answer.add("MOVE ${target.x} ${target.y}")
+                }
+            }
+        }
+
+        return answer.toList()
+    }
 }
