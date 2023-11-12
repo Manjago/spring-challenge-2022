@@ -51,9 +51,11 @@ fun main(args : Array<String>) {
                     heroes.put(id, Hero(id, x, y))
                 }
             }
+
         }
 
         val nextMove = nextMove(spiders, heroes)
+        System.err.println("nextMove size ${nextMove.size}")
         nextMove.forEach {
             println(it)
         }
@@ -99,6 +101,9 @@ fun nextMove(spiders : List<Spider>, heroes: Map<Int, Hero>) : List<String> {
     for(i in sorted.indices) {
        val spider = spiders[i]
        answer.add("MOVE ${spider.x} ${spider.y}")
+       if (answer.size == 3) {
+           break
+       }
     }
 
     while (answer.size < 3) {
