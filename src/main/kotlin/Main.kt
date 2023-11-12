@@ -77,53 +77,92 @@ class Spider(
 }
 
 open class Coord(val x: Int, val y: Int) {
+
     override fun toString(): String {
         return "Coord(x=$x, y=$y)"
     }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as Coord
+
+        if (x != other.x) return false
+        if (y != other.y) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = x
+        result = 31 * result + y
+        return result
+    }
+
     companion object {
         val ZERO = Coord(0,0)
     }
 }
 
-fun dist(xMe: Int, yMe: Int, xHis: Int, yHis: Int) : Int = (xMe - xHis)*(xMe - xHis) + (yMe - yHis) * (yMe - yHis)
+fun power2(a: Int) = a * a
+fun dist(a: Coord, b:Coord) : Int = power2(a.x - b.x) + power2(a.y - b.y)
 
 sealed interface State {
     enum class Wait : State {
         INSTANCE;
     }
     class Focused(val victimId: Int) : State
+    class Go(val dest: Coord) : State
 }
 
 class Player {
 
+    var initialCoord: Array<Coord>? = null
     lateinit var coord : Array<Coord>
     val states = Array<State>(3) {State.Wait.INSTANCE}
 
     fun nextMove(spiders : Map<Int, Spider>, heroesCoord: Array<Coord>) : List<String> {
 
+        if (initialCoord == null) {
+            initialCoord = heroesCoord
+        }
+
         coord = heroesCoord
 
-        // clean old
+        // clean old focused
         for(i in 0 until 3) {
             val state = states[i]
             if (state is State.Focused) {
                 if (!spiders.containsKey(state.victimId)) {
                     val oldVicitmId = state.victimId
-                    states[i] = State.Wait.INSTANCE
+                    states[i] = State.Go(initialCoord!![i])
                     System.err.println("$i release from $oldVicitmId")
                 }
+            }
+        }
+
+        //clean old Go
+        for(i in 0 until 3) {
+            val state = states[i]
+            if (state is State.Go && coord[i] == state.dest) {
+                states[i] = State.Wait.INSTANCE
+                System.err.println("$i trip end")
             }
         }
 
         // get new
         spiders.values.asSequence().filter { spider -> spider.nearBase }.forEach {spider ->
             if (states.asSequence().any { it is State.Focused && it.victimId == spider.id}.not()) {
-                for (i in 0 until 3) {
-                    val st = states[i]
-                    if (st is State.Wait) {
-                        states[i] = State.Focused(spider.id)
-                        System.err.println("$i focus on ${spider.id}")
-                    }
+
+                // nearest
+                val ordered = sequenceOf(0, 1, 2).filter { states[it] !is State.Focused }.sortedBy {
+                    dist(spider, coord[it])
+                }.toList()
+                if (ordered.isNotEmpty()) {
+                    val index = ordered[0]
+                    states[index] = State.Focused(spider.id)
+                    System.err.println("$index focus on ${spider.id}")
                 }
             }
         }
@@ -131,11 +170,14 @@ class Player {
         val answer = mutableListOf<String>()
 
         for(i in 0 until 3) {
-            val state = states[i]
-            when(state) {
+            when(val state = states[i]) {
                 is State.Wait -> answer.add("WAIT")
                 is State.Focused -> {
                     val target = spiders[state.victimId]!!
+                    answer.add("MOVE ${target.x} ${target.y}")
+                }
+                is State.Go -> {
+                    val target = state.dest
                     answer.add("MOVE ${target.x} ${target.y}")
                 }
             }
