@@ -48,7 +48,13 @@ fun main(args : Array<String>) {
                     ))
                 }
                 1 -> {
-                    heroesCoord[id] = Coord(x, y)
+                    if (id in 0 ..2) {
+                        heroesCoord[id] = Coord(x, y)
+                    } else {
+                        val modId = id - 3
+                        heroesCoord[modId] = Coord(x, y)
+                    }
+
                 }
             }
 
