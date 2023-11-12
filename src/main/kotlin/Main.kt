@@ -48,7 +48,7 @@ fun main(args : Array<String>) {
                     ))
                 }
                 1 -> {
-                    heroesCoord[i] = Coord(x, y)
+                    heroesCoord[id] = Coord(x, y)
                 }
             }
 
@@ -152,7 +152,7 @@ class Player {
         }
 
         // get new
-        spiders.values.asSequence().filter { spider -> spider.nearBase }.forEach {spider ->
+        spiders.values.asSequence().filter { spider -> spider.nearBase && spider.threatForMe }.forEach {spider ->
             if (states.asSequence().any { it is State.Focused && it.victimId == spider.id}.not()) {
 
                 // nearest
@@ -171,14 +171,19 @@ class Player {
 
         for(i in 0 until 3) {
             when(val state = states[i]) {
-                is State.Wait -> answer.add("WAIT")
+                is State.Wait -> {
+                    answer.add("WAIT")
+                    System.err.println("$i WAIT")
+                }
                 is State.Focused -> {
                     val target = spiders[state.victimId]!!
                     answer.add("MOVE ${target.x} ${target.y}")
+                    System.err.println("$i focused on spider ${state.victimId} dist ${dist(coord[i], target)}")
                 }
                 is State.Go -> {
                     val target = state.dest
                     answer.add("MOVE ${target.x} ${target.y}")
+                    System.err.println("$i got to $target dist ${dist(coord[i], target)}")
                 }
             }
         }
